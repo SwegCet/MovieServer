@@ -1,7 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using DotNetEnv;
 using MovieApi.Data;
 
 var builder = WebApplication.CreateBuilder(args);
+
+//Load .env variables
+Env.Load();
 
 // Add services to the container.
 builder.Services.AddControllers(); // Add support for controllers without views
@@ -11,6 +15,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseNpgsql(builder.Configuration.GetConnectionString("Supabase"));
 });
+
+builder.Configuration.AddEnvironmentVariables(); // Ensure env gets merged with config
 
 //Cors for Vie Dev Server (For React)
 builder.Services.AddCors(options =>
