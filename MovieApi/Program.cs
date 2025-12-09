@@ -10,13 +10,15 @@ Env.Load();
 // Add services to the container.
 builder.Services.AddControllers(); // Add support for controllers without views
 
+builder.Configuration.AddEnvironmentVariables(); // Ensure env gets merged with config
+
+var connectionString = Environment.GetEnvironmentVariable("SUPABASE_DB_CONNECTION");
+
 // EF Core + Supabase:
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Supabase"));
+    options.UseNpgsql(connectionString);
 });
-
-builder.Configuration.AddEnvironmentVariables(); // Ensure env gets merged with config
 
 //Cors for Vie Dev Server (For React)
 builder.Services.AddCors(options =>
