@@ -1,7 +1,27 @@
+using Microsoft.EntityFrameworkCore;
+using MovieApi.Data;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllers(); // Add support for controllers without views
+
+// EF Core + Supabase:
+builder.Services.AddDbContext<AppDbContext>(options =>
+{
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Supabase"));
+});
+
+//Cors for Vie Dev Server (For React)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("ViteDev", policy =>
+    {
+        policy.WithOrigins("http://localhost:5000")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
 
 var app = builder.Build();
 
