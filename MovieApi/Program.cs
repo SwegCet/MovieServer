@@ -1,57 +1,68 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using DotNetEnv;
+using Microsoft.IdentityModel.Tokens;
 using MovieApi.Data;
+using MovieApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-//Load .env variables
-Env.Load();
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
-// Add services to the container.
-builder.Services.AddControllers(); // Add support for controllers without views
+// EF Core (Supabase Postgres)
+builder.Services.AddDbContext<AppDbContext>(opt =>
+    opt.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
-builder.Configuration.AddEnvironmentVariables(); // Ensure env gets merged with config
+// TMDB HttpClient + service
+builder.Services.AddHttpClient<TmdbService>();
+builder.Services.AddScoped<TmdbService>();
 
-var connectionString = Environment.GetEnvironmentVariable("SUPABASE_DB_CONNECTION");
+// Auth services
+builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<AuthService>();
 
-// EF Core + Supabase:
-builder.Services.AddDbContext<AppDbContext>(options =>
+// CORS for Vite client
+builder.Services.AddCors(opt =>
 {
-    options.UseNpgsql(connectionString);
+    opt.AddPolicy("client", p => p
+        .WithOrigins(builder.Configuration["ClientOrigin"]!)
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials());
 });
 
-//Cors for Vie Dev Server (For React)
-builder.Services.AddCors(options =>
+// JWT Auth
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+.AddJwtBearer(opt =>
 {
-    options.AddPolicy("ViteDev", policy =>
+    opt.TokenValidationParameters = new TokenValidationParameters
     {
-        policy.WithOrigins("http://localhost:5000")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
-    });
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+    };
+});
+
+builder.Services.AddAuthorization(options =>
+{
+    // A-level add-on ready: role policy
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
 });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Home/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
-app.UseHttpsRedirection();
-app.UseRouting();
-
+app.UseCors("client");
+app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapStaticAssets();
-
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}")
-    .WithStaticAssets();
-
-
+app.MapControllers();
 app.Run();
