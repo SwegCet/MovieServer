@@ -36,20 +36,29 @@ public class FavoritesController(AppDbContext db) : ControllerBase
     {
         var uid = UserId();
 
-        var exists = await db.FavoriteMovies.AnyAsync(f => f.ProfileId == uid && f.TmdbMovieId == req.TmdbMovieId);
-        if (exists) return NoContent();
+        var existing = await db.FavoriteMovies
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.ProfileId == uid && f.TmdbMovieId == req.TmdbMovieId);
 
-        db.FavoriteMovies.Add(new FavoriteMovie
+        // If it already exists, return JSON (NOT 204)
+        if (existing != null)
+            return Ok(new { success = true, created = false });
+
+        var fav = new FavoriteMovie
         {
             ProfileId = uid,
             TmdbMovieId = req.TmdbMovieId,
             Title = req.Title,
             PosterPath = req.PosterPath
-        });
+        };
 
+        db.FavoriteMovies.Add(fav);
         await db.SaveChangesAsync();
-        return Created("", null);
+
+        // Return JSON (and optionally the created record)
+        return Created("", new { success = true, created = true, favorite = fav });
     }
+
 
     [HttpDelete("{tmdbMovieId:int}")]
     public async Task<IActionResult> Remove(int tmdbMovieId)
