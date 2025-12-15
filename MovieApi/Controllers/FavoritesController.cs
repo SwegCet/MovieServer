@@ -1,55 +1,65 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using MovieApi.Models;
 using MovieApi.Data;
-using System.Threading.Tasks;
+using MovieApi.DTOs;
+using MovieApi.Models;
 
-namespace MovieApi.Controllers
+namespace MovieApi.Controllers;
+
+[ApiController]
+[Route("api/favorites")]
+[Authorize]
+public class FavoritesController(AppDbContext db) : ControllerBase
 {
-    [ApiController]
-    [Route("/api/[controller]")]
-    public class FavoritesController : ControllerBase
+    private Guid UserId()
     {
-        private readonly AppDbContext _db;
+        var id = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.Parse(id!);
+    }
 
-        public FavoritesController(AppDbContext db)
+    [HttpGet]
+    public async Task<ActionResult<List<FavoriteMovie>>> GetMine()
+    {
+        var uid = UserId();
+        var favs = await db.FavoriteMovies
+            .Where(f => f.ProfileId == uid)
+            .OrderByDescending(f => f.CreatedAt)
+            .ToListAsync();
+
+        return Ok(favs);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Add([FromBody] FavoriteCreateRequest req)
+    {
+        var uid = UserId();
+
+        var exists = await db.FavoriteMovies.AnyAsync(f => f.ProfileId == uid && f.TmdbMovieId == req.TmdbMovieId);
+        if (exists) return NoContent();
+
+        db.FavoriteMovies.Add(new FavoriteMovie
         {
-            _db = db;
-        }
+            ProfileId = uid,
+            TmdbMovieId = req.TmdbMovieId,
+            Title = req.Title,
+            PosterPath = req.PosterPath
+        });
 
-        // GET /api/favorites/{userId}
-        [HttpGet("{userId:guid}")]
-        public async Task<ActionResult> GetFavorites(Guid userId)
-        {
-            var favorites = await _db.FavoriteMovies
-                    .Where(f => f.UserId == userId)
-                    .ToListAsync();
+        await db.SaveChangesAsync();
+        return Created("", null);
+    }
 
-            return Ok(favorites);
-        }
+    [HttpDelete("{tmdbMovieId:int}")]
+    public async Task<IActionResult> Remove(int tmdbMovieId)
+    {
+        var uid = UserId();
+        var fav = await db.FavoriteMovies.SingleOrDefaultAsync(f => f.ProfileId == uid && f.TmdbMovieId == tmdbMovieId);
+        if (fav is null) return NoContent();
 
-        public class AddFavoriteRequest
-        {
-            public Guid UserId { get; set; }
-            public string MovieApiId { get; set; } = string.Empty;
-        }
-
-        //POST /api/favorites
-        [HttpPost]
-        public async Task<IActionResult> AddFavorite([FromBody] AddFavoriteRequest req)
-        {
-            var fav = new FavoriteMovies
-            {
-                UserId = req.UserId,
-                MovieApiId = req.MovieApiId,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _db.FavoriteMovies.Add(fav);
-            await _db.SaveChangesAsync();
-
-            return Ok(fav);
-        }
+        db.FavoriteMovies.Remove(fav);
+        await db.SaveChangesAsync();
+        return NoContent();
     }
 }
