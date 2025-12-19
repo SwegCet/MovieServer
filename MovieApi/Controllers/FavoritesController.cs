@@ -15,6 +15,7 @@ public class FavoritesController(AppDbContext db) : ControllerBase
 {
     private Guid UserId()
     {
+        //Find Id that matches user Id in Database
         var id = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.Parse(id!);
     }
@@ -22,6 +23,7 @@ public class FavoritesController(AppDbContext db) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<FavoriteMovie>>> GetMine()
     {
+        // Fetch User Id, post list of favorite movies from user from DB
         var uid = UserId();
         var favs = await db.FavoriteMovies
             .Where(f => f.ProfileId == uid)
@@ -44,6 +46,7 @@ public class FavoritesController(AppDbContext db) : ControllerBase
         if (existing != null)
             return Ok(new { success = true, created = false });
 
+        // Post to Databse & Update DB
         var fav = new FavoriteMovie
         {
             ProfileId = uid,
@@ -63,6 +66,7 @@ public class FavoritesController(AppDbContext db) : ControllerBase
     [HttpDelete("{tmdbMovieId:int}")]
     public async Task<IActionResult> Remove(int tmdbMovieId)
     {
+        //Find matching movie Id to be deleted, remove from DB and update
         var uid = UserId();
         var fav = await db.FavoriteMovies.SingleOrDefaultAsync(f => f.ProfileId == uid && f.TmdbMovieId == tmdbMovieId);
         if (fav is null) return NoContent();
