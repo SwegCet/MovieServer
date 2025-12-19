@@ -7,6 +7,8 @@ using MovieApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var origins = builder.Configuration.GetSection("ClientOrigin").Get<string[]>(); // Reads json file for ClientOrigin key
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -27,7 +29,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddCors(opt =>
 {
     opt.AddPolicy("client", p => p
-        .WithOrigins(builder.Configuration["ClientOrigin"]!)
+        .WithOrigins(origins ?? Array.Empty<string>())
         .AllowAnyHeader()
         .AllowAnyMethod()
         .AllowCredentials());
